@@ -388,16 +388,6 @@ namespace
         std::span<std::vector<std::optional<Address>> const> const
             authorities_view{authorities.data(), transactions_size};
 
-        // TODO(EXE-60): this re-execution path (and the sibling eth_call /
-        // eth_simulate paths in this file) receives a BlockHeader whose
-        // slot_number is unset (it is in-memory only, not RLP-encoded), so
-        // once SLOTNUM (EIP-7843) is wired the round read via
-        // evmc_tx_context.block_round would be 0. On this historical-trace
-        // path that diverges from how the block actually executed; the
-        // eth_call/eth_simulate paths run against synthetic headers where a 0
-        // round may be acceptable. Repopulate slot_number from the persisted
-        // MonadConsensusBlockHeader::block_round where a real round exists, per
-        // EXE-60.
         // Execute block header
         execute_block_header<traits>(
             block_state, header, /*exec_recorder=*/nullptr);
@@ -882,6 +872,16 @@ namespace
         uint64_t gas_consumed_so_far = 0;
         size_t carried_size = sizeof(nlohmann::json::array_t);
 
+        auto const next_round =
+            [](BlockHeader const &parent) -> std::optional<uint64_t> {
+            if constexpr (traits::eip_7843_active()) {
+                if (parent.slot_number.has_value()) {
+                    return parent.slot_number.value() + 1;
+                }
+            }
+            return std::nullopt;
+        };
+
         auto block_state = BlockState{tdb, vm};
         for (size_t block_idx = 0; block_idx < calls.size(); ++block_idx) {
             auto const &bo = block_overrides.overrides[block_idx];
@@ -893,6 +893,7 @@ namespace
                 bo.number.value_or(header.number + 1) - header.number;
             // No-op for gap == 1.
             for (size_t i = 1; i < gap; ++i) {
+                auto const synthetic_round = next_round(header);
                 BlockHeader const synthetic_header{
                     .parent_hash = block_hash_buffer.get(header.number),
                     .number = header.number + 1,
@@ -908,7 +909,15 @@ namespace
                     // TODO(dhil): The simulation does not compute roots at this
                     // time.
                     .parent_beacon_block_root = bytes32_t{},
+                    .requests_hash = synthetic_round.has_value()
+                                         ? std::optional{bytes32_t{}}
+                                         : std::nullopt,
+                    .block_access_list_hash = synthetic_round.has_value()
+                                                  ? std::optional{bytes32_t{}}
+                                                  : std::nullopt,
+                    .slot_number = synthetic_round,
                 };
+
                 Block const synthetic_block{
                     .header = synthetic_header,
                 };
@@ -973,6 +982,7 @@ namespace
                 "blocks");
 
             // Construct the block header.
+            auto const current_round = next_round(header);
             BlockHeader const current_header{
                 .parent_hash = block_hash_buffer.get(header.number),
                 .prev_randao = bo.prev_randao.value_or(bytes32_t{}),
@@ -992,6 +1002,13 @@ namespace
                 // TODO(dhil): The simulation does not compute roots at this
                 // time.
                 .parent_beacon_block_root = bytes32_t{},
+                .requests_hash = current_round.has_value()
+                                     ? std::optional{bytes32_t{}}
+                                     : std::nullopt,
+                .block_access_list_hash = current_round.has_value()
+                                              ? std::optional{bytes32_t{}}
+                                              : std::nullopt,
+                .slot_number = current_round,
             };
 
             // Construct state
