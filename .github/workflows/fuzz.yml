@@ -20,7 +20,7 @@ jobs:
           sudo apt-get install -y \
             ninja-build lsb-release wget gnupg software-properties-common pkg-config \
             libgtest-dev libgmock-dev \
-            libboost-dev libboost-context-dev libboost-filesystem-dev libboost-json-dev \
+            libboost-all-dev libcap-dev \
             libbrotli-dev libcrypto++-dev libzstd-dev libcli11-dev libtbb-dev
           wget https://apt.llvm.org/llvm.sh
           chmod +x llvm.sh
@@ -42,6 +42,7 @@ jobs:
       - name: Build fuzz_statesync
         run: |
           set -o pipefail
+          df -h /home/runner
           cmake --build build --target fuzz_statesync -j2 2>&1 | tail -50
 
       - name: Fuzz statesync
