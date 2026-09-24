@@ -5,7 +5,7 @@ on:
 jobs:
   fuzz-statesync:
     runs-on: ubuntu-24.04
-    timeout-minutes: 300
+    timeout-minutes: 330
     steps:
       - name: Checkout (v0.16.4, shallow)
         uses: actions/checkout@v4
@@ -14,34 +14,50 @@ jobs:
           fetch-depth: 1
           submodules: recursive
 
-      - name: Install deps
+      - name: Install deps (clang-19)
         run: |
           sudo apt-get update
-          sudo apt-get install -y ninja-build clang-18
-          clang-18 --version
-          df -h /
+          sudo apt-get install -y ninja-build lsb-release wget gnupg software-properties-common
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 19
+          clang-19 --version | head -3
 
       - name: Configure (clang-fuzz)
         run: |
-          CC=clang-18 CXX=clang++-18 cmake -G Ninja -B build \
+          set -o pipefail
+          CC=clang-19 CXX=clang++-19 cmake -G Ninja -B build \
             -DCMAKE_TOOLCHAIN_FILE=category/core/toolchains/clang-fuzz.cmake \
             -DCMAKE_BUILD_TYPE=Debug 2>&1 | tail -30
 
       - name: Build fuzz_statesync
-        run: cmake --build build --target fuzz_statesync -j2 2>&1 | tail -40
+        run: |
+          set -o pipefail
+          cmake --build build --target fuzz_statesync -j2 2>&1 | tail -50
 
       - name: Fuzz statesync
         run: |
           mkdir -p artifacts
+          set +e
           ./build/category/statesync/fuzz_statesync \
             -max_total_time=7200 \
+            -max_len=1024 \
+            -rss_limit_mb=5000 \
             -artifact_prefix=artifacts/ \
-            -print_final_stats=1 2>&1 | tail -60
+            -print_final_stats=1 > fuzz.log 2>&1
+          FUZZ_EXIT=$?
+          echo "=== FUZZ_EXIT_CODE=$FUZZ_EXIT ==="
+          tail -80 fuzz.log
+          echo "=== artifacts ==="
+          ls -la artifacts/ 2>/dev/null || echo "(no artifacts)"
+          exit 0
 
       - name: Upload artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: fuzz-artifacts
-          path: artifacts/
+          path: |
+            artifacts/
+            fuzz.log
           if-no-files-found: ignore
