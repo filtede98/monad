@@ -14,14 +14,19 @@ jobs:
           fetch-depth: 1
           submodules: recursive
 
-      - name: Install deps (clang-19)
+      - name: Install deps (clang-19 + gtest)
         run: |
           sudo apt-get update
-          sudo apt-get install -y ninja-build lsb-release wget gnupg software-properties-common
+          sudo apt-get install -y ninja-build lsb-release wget gnupg software-properties-common libgtest-dev libgmock-dev pkg-config
           wget https://apt.llvm.org/llvm.sh
           chmod +x llvm.sh
           sudo ./llvm.sh 19
           clang-19 --version | head -3
+          # Ubuntu ships GTest headers only; build + install the libs from source
+          cd /usr/src/googletest
+          sudo cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_GMOCK=ON
+          sudo cmake --build build -j4
+          sudo cmake --install build
 
       - name: Configure (clang-fuzz)
         run: |
