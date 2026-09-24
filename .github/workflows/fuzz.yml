@@ -14,10 +14,14 @@ jobs:
           fetch-depth: 1
           submodules: recursive
 
-      - name: Install deps (clang-19 + gtest)
+      - name: Install deps (clang-19 + gtest + all cmake deps)
         run: |
           sudo apt-get update
-          sudo apt-get install -y ninja-build lsb-release wget gnupg software-properties-common libgtest-dev libgmock-dev pkg-config
+          sudo apt-get install -y \
+            ninja-build lsb-release wget gnupg software-properties-common pkg-config \
+            libgtest-dev libgmock-dev \
+            libboost-dev libboost-context-dev libboost-filesystem-dev libboost-json-dev \
+            libbrotli-dev libcrypto++-dev libzstd-dev libcli11-dev libtbb-dev
           wget https://apt.llvm.org/llvm.sh
           chmod +x llvm.sh
           sudo ./llvm.sh 19
