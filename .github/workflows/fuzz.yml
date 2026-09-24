@@ -47,24 +47,19 @@ jobs:
             -DCMAKE_TOOLCHAIN_FILE=category/core/toolchains/clang-fuzz.cmake \
             -DCMAKE_BUILD_TYPE=Debug 2>&1 | tail -30
 
-      - name: Build fuzz_statesync
+      - name: Build fuzz_rlp
         run: |
           set -o pipefail
           df -h /home/runner
-          cmake --build build --target fuzz_statesync -j2 2>&1 | tail -50
+          cmake --build build --target fuzz_rlp -j2 2>&1 | tail -50
 
-      - name: Fuzz statesync
+      - name: Fuzz rlp
         run: |
           mkdir -p artifacts
-          # io_uring_register_buffers must pin its 32MB buffers -> needs RLIMIT_MEMLOCK
-          ulimit -l unlimited 2>/dev/null || true
-          sudo prlimit --pid $$ --memlock=unlimited:unlimited 2>/dev/null || true
-          echo "memlock soft limit: $(ulimit -l)"
           set +e
-          ./build/category/statesync/fuzz_statesync \
+          ./build/category/statesync/fuzz_rlp \
             -max_total_time=7200 \
-            -max_len=1024 \
-            -rss_limit_mb=5000 \
+            -max_len=8192 \
             -artifact_prefix=artifacts/ \
             -print_final_stats=1 > fuzz.log 2>&1
           FUZZ_EXIT=$?
