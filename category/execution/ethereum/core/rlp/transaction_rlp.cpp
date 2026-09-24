@@ -395,6 +395,12 @@ Result<std::vector<Transaction>> decode_transaction_list(byte_string_view &enc)
         }
         else {
             BOOST_OUTCOME_TRY(auto str, parse_string_metadata(ls));
+            if (MONAD_UNLIKELY(str.empty())) {
+                // Fuzz fix: a typed-transaction element may be an empty string
+                // (0x80); decode_transaction_eip2718 asserts non-empty input.
+                // Reject gracefully, matching decode_transaction().
+                return DecodeError::InputTooShort;
+            }
             BOOST_OUTCOME_TRY(auto tx, decode_transaction_eip2718(str));
             transactions.emplace_back(std::move(tx));
         }
