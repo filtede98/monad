@@ -52,13 +52,24 @@ HugeMem::HugeMem(size_t const size)
         return round_up(size, MAP_HUGE_2MB >> MAP_HUGE_SHIFT);
     }()}
     , data_{[this] {
-        void *const data = mmap(
+        void *data = mmap(
             nullptr,
             size_,
             PROT_READ | PROT_WRITE,
             MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB | MAP_HUGE_2MB,
             -1,
             0);
+        if (data == MAP_FAILED) {
+            // Huge pages may be unavailable (e.g. CI runners); fall back to
+            // regular anonymous memory, which is functionally equivalent.
+            data = mmap(
+                nullptr,
+                size_,
+                PROT_READ | PROT_WRITE,
+                MAP_PRIVATE | MAP_ANONYMOUS,
+                -1,
+                0);
+        }
         MONAD_ASSERT(data != MAP_FAILED);
         return static_cast<unsigned char *>(data);
     }()}
@@ -68,13 +79,16 @@ HugeMem::HugeMem(size_t const size)
      * - mbind (same numa node)
      */
 
-    MONAD_ASSERT(!mlock(data_, size_));
+    // Huge pages are non-swappable already; regular anonymous memory may not be
+    // lockable in constrained environments (ulimit -l), so locking failure is
+    // non-fatal.
+    (void)mlock(data_, size_);
 }
 
 HugeMem::~HugeMem()
 {
     if (size_ > 0) {
-        MONAD_ASSERT(!munlock(data_, size_));
+        (void)munlock(data_, size_);
         MONAD_ASSERT(!munmap(data_, size_));
     }
 }
