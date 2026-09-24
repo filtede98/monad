@@ -56,6 +56,10 @@ jobs:
       - name: Fuzz statesync
         run: |
           mkdir -p artifacts
+          # io_uring_register_buffers must pin its 32MB buffers -> needs RLIMIT_MEMLOCK
+          ulimit -l unlimited 2>/dev/null || true
+          sudo prlimit --pid $$ --memlock=unlimited:unlimited 2>/dev/null || true
+          echo "memlock soft limit: $(ulimit -l)"
           set +e
           ./build/category/statesync/fuzz_statesync \
             -max_total_time=7200 \
