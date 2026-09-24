@@ -31,6 +31,14 @@ jobs:
           sudo cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_GMOCK=ON
           sudo cmake --build build -j4
           sudo cmake --install build
+          # GCC 15 provides libstdc++-15 (C++23 std::optional::value_or); Monad requires GCC>=15
+          sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
+          sudo apt-get update
+          sudo apt-get install -y g++-15
+          # smoke test: does clang-19 now resolve std::optional::value_or?
+          printf '#include <optional>\nint main(){std::optional<int> o; return o.value_or(0);}\n' \
+            | clang++-19 -std=gnu++23 -x c++ - -o /tmp/smoke_value_or \
+            && echo "VALUE_OR_OK" || echo "VALUE_OR_STILL_MISSING"
 
       - name: Configure (clang-fuzz)
         run: |
