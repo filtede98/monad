@@ -57,8 +57,9 @@ LLVMFuzzerTestOneInput(uint8_t const *const data, size_t const size)
 
     // Receipts / withdrawals / logs
     attempt(decode_receipt, raw);
-    attempt(decode_untyped_receipt, raw);
     attempt(decode_log, raw);
+    attempt(decode_logs, raw);
+    attempt(decode_topics, raw);
     attempt(decode_bloom, raw);
     attempt(decode_withdrawal, raw);
 
